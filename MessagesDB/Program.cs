@@ -14,13 +14,13 @@ internal class Program
 {
     static async Task Main(string[] args)
     {
-        var connectionFactory = new DbConnectionFactory("Host=localhost;Port=5432;Database=messenger;Username=postgres;Password=postgres");
+        var connectionString =
+            Environment.GetEnvironmentVariable("MESSAGESDB_CONNECTION_STRING")
+                 ?? throw new InvalidOperationException("MESSAGESDB_CONNECTION_STRING is missing.");
 
+        var connectionFactory = new DbConnectionFactory(connectionString);
         var userRepository = new PostgresUserRepository(connectionFactory);
         var messageRepository = new PostgresMessageRepository(connectionFactory);
-
-        var saveSupportMessageHandler =
-            new SaveSupportMessageCommandHandler(userRepository, messageRepository);
 
         var parser = new JsonPacketParser(); //Convert entrying packets to Json
         var dispatcher = new CommandDispatcher([ //Dispatch command 

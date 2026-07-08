@@ -109,6 +109,49 @@ public class SaveSupportMessage
         Assert.Single(messages.Messages);
         Assert.Equal(users.Users[0].Id, messages.Messages[0].UserId);
     }
+
+    [Fact]
+    public async Task HandleAsync_WithExistingUser_ReusesExistingUserAndCreatesSecondMessage()
+    {
+        var users = new FakeUserRepository();
+        var messages = new FakeMessageRepository();
+        var handler = new SaveSupportMessageCommandHandler(users, messages);
+
+        var firstRequest = new RequestPacket
+        {
+            Type = "SaveSupportMessage",
+            Data = JsonSerializer.SerializeToElement(new SaveSupportMessageData
+            {
+                SessionId = "session-first",
+                UserName = "Moshe_test",
+                PhoneNumber = "0585200517",
+                ProjectName = "_5_test_server.fly",
+                Text = "first message"
+            })
+        };
+
+        var secondRequest = new RequestPacket
+        {
+            Type = "SaveSupportMessage",
+            Data = JsonSerializer.SerializeToElement(new SaveSupportMessageData
+            {
+                SessionId = "session-second",
+                UserName = "Moshe_test",
+                PhoneNumber = "0585200517",
+                ProjectName = "_5_test_server.fly",
+                Text = "second message"
+            })
+        };
+
+        var firstResponse = await handler.HandleAsync(firstRequest);
+        var secondResponse = await handler.HandleAsync(secondRequest);
+
+        Assert.True(firstResponse.Ok);
+        Assert.True(secondResponse.Ok);
+        Assert.Single(users.Users);
+        Assert.Equal(2, messages.Messages.Count);
+        Assert.All(messages.Messages, message => Assert.Equal(users.Users[0].Id, message.UserId));
+    }
     public static IEnumerable<object[]> MissingFieldCases()
     {
         yield return [nameof(SaveSupportMessageData.UserName)];
@@ -117,3 +160,4 @@ public class SaveSupportMessage
         yield return [nameof(SaveSupportMessageData.Text)];
     }
 }
+
