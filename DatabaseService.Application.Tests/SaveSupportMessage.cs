@@ -79,7 +79,7 @@ public class SaveSupportMessage
                 };
         }
 
-        return null;
+        throw new ArgumentOutOfRangeException(nameof(missingField), missingField, null);
     }
 
     [Fact]

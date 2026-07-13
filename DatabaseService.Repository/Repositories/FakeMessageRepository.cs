@@ -18,7 +18,11 @@ public sealed class FakeMessageRepository : IMessageRepository
             SessionId = message.SessionId,
             ProjectName = message.ProjectName,
             Text = message.Text,
-            CreatedAtUtc = message.CreatedAtUtc
+            TelegramChatId = message.TelegramChatId,
+            TelegramMessageId = message.TelegramMessageId,
+            Direction = message.Direction,
+            CreatedAtUtc = message.CreatedAtUtc,
+            Files = message.Files
         };
 
         Messages.Add(savedMessage);
@@ -31,5 +35,40 @@ public sealed class FakeMessageRepository : IMessageRepository
         return Task.FromResult<IReadOnlyList<Message>>(
             Messages.Where(message => message.SessionId == sessionId).ToList()
         );
+    }
+
+    public Task<IReadOnlyList<Message>> GetHistoryAsync(
+        string phoneNumber,
+        string projectName,
+        long afterMessageId = 0,
+        int limit = 100)
+    {
+        return Task.FromResult<IReadOnlyList<Message>>(
+            Messages
+                .Where(message =>
+                    message.ProjectName == projectName &&
+                    message.Id > afterMessageId)
+                .OrderBy(message => message.Id)
+                .Take(limit)
+                .ToList()
+        );
+    }
+
+    public Task<MessageContext?> GetContextByTelegramReferenceAsync(
+        long telegramChatId,
+        long telegramMessageId)
+    {
+        var message = Messages.FirstOrDefault(item =>
+            item.TelegramChatId == telegramChatId &&
+            item.TelegramMessageId == telegramMessageId);
+
+        return Task.FromResult(message is null
+            ? null
+            : new MessageContext
+            {
+                UserId = message.UserId,
+                SessionId = message.SessionId,
+                ProjectName = message.ProjectName
+            });
     }
 }

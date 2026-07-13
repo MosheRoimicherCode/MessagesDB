@@ -12,11 +12,17 @@ public sealed class TcpServer
 {
     private readonly TcpListener _listener;
     private readonly ClientConnectionHandler _handler;
-    private readonly SemaphoreSlim _clientLimit = new(100);
-    public  TcpServer(ClientConnectionHandler handler)
+    private readonly SemaphoreSlim _clientLimit;
+
+    public TcpServer(
+        ClientConnectionHandler handler,
+        IPAddress bindAddress,
+        int port,
+        int maxConcurrentClients)
     {
-        _listener = new TcpListener(IPAddress.Parse("127.0.0.1"), 7700);
+        _listener = new TcpListener(bindAddress, port);
         _handler = handler;
+        _clientLimit = new SemaphoreSlim(maxConcurrentClients);
     }
 
     public async Task StartAsync()

@@ -70,6 +70,11 @@ public sealed class SaveSupportMessageCommandHandler : ICommandHandler
             missingFields.Add(nameof(data.SessionId));
         }
 
+        if (string.IsNullOrWhiteSpace(data.ProjectName))
+        {
+            missingFields.Add(nameof(data.ProjectName));
+        }
+
         if (string.IsNullOrWhiteSpace(data.Text))
         {
             missingFields.Add(nameof(data.Text));
@@ -82,6 +87,14 @@ public sealed class SaveSupportMessageCommandHandler : ICommandHandler
             );
         }
 
+        if (!Enum.TryParse<MessageDirection>(data.Direction, true, out var direction) ||
+            !Enum.IsDefined(direction))
+        {
+            return ResponsePacket.Failure(
+                "Direction must be FrontendToTelegram or TelegramToFrontend."
+            );
+        }
+
         var user = await _users.GetOrCreateAsync(data.UserName, data.PhoneNumber);
 
         var message = await _messages.CreateAsync(new Message
@@ -90,7 +103,10 @@ public sealed class SaveSupportMessageCommandHandler : ICommandHandler
             SessionId = data.SessionId,
             ProjectName = data.ProjectName,
             Text = data.Text,
-            CreatedAtUtc = DateTime.UtcNow
+            TelegramChatId = data.TelegramChatId,
+            TelegramMessageId = data.TelegramMessageId,
+            Direction = direction,
+            CreatedAtUtc = data.CreatedAtUtc
         });
 
         return ResponsePacket.Success(new

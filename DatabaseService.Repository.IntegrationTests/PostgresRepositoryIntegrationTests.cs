@@ -70,6 +70,94 @@ public sealed class PostgresRepositoryIntegrationTests
         Assert.Equal("test message", found[0].Text);
     }
 
+    [Fact]
+    public async Task MessageRepository_CreateWithFile_ThenGetHistory_ReturnsCompleteMetadata()
+    {
+        await CreateSchemaAsync();
+
+        var users = new PostgresUserRepository(_connectionFactory);
+        var messages = new PostgresMessageRepository(_connectionFactory);
+        var phoneNumber = CreateUniquePhoneNumber();
+        var projectName = "integration-" + Guid.NewGuid().ToString("N") + ".fly";
+        var user = await users.GetOrCreateAsync("History user", phoneNumber);
+
+        var saved = await messages.CreateAsync(new Message
+        {
+            UserId = user.Id,
+            SessionId = "session-" + Guid.NewGuid().ToString("N"),
+            ProjectName = projectName,
+            Text = "message with document",
+            TelegramChatId = -100123456,
+            TelegramMessageId = 123456,
+            Direction = MessageDirection.FrontendToTelegram,
+            CreatedAtUtc = DateTime.UtcNow,
+            Files =
+            [
+                new MessageFile
+                {
+                    TelegramFileId = "telegram-file-id",
+                    TelegramFileUniqueId = "telegram-unique-id",
+                    FileName = "drawing.pdf",
+                    MimeType = "application/pdf",
+                    FileSize = 2048,
+                    FileKind = "Document",
+                    Thumbnail = new MessageFileThumbnail
+                    {
+                        TelegramFileId = "thumbnail-file-id",
+                        TelegramFileUniqueId = "thumbnail-unique-id",
+                        Width = 320,
+                        Height = 200,
+                        FileSize = 512
+                    }
+                }
+            ]
+        });
+
+        var history = await messages.GetHistoryAsync(phoneNumber, projectName);
+
+        var message = Assert.Single(history);
+        Assert.Equal(saved.Id, message.Id);
+        Assert.Equal(123456, message.TelegramMessageId);
+        Assert.Equal(MessageDirection.FrontendToTelegram, message.Direction);
+
+        var file = Assert.Single(message.Files);
+        Assert.Equal("telegram-file-id", file.TelegramFileId);
+        Assert.Equal("drawing.pdf", file.FileName);
+        Assert.Equal("Document", file.FileKind);
+        Assert.NotNull(file.Thumbnail);
+        Assert.Equal("thumbnail-file-id", file.Thumbnail.TelegramFileId);
+        Assert.Equal(320, file.Thumbnail.Width);
+
+        var context = await messages.GetContextByTelegramReferenceAsync(
+            -100123456,
+            123456);
+
+        Assert.NotNull(context);
+        Assert.Equal(user.Id, context.UserId);
+        Assert.Equal(phoneNumber, context.PhoneNumber);
+        Assert.Equal(projectName, context.ProjectName);
+        Assert.Equal(saved.SessionId, context.SessionId);
+
+        var nextSaved = await messages.CreateAsync(new Message
+        {
+            UserId = user.Id,
+            SessionId = "session-next-" + Guid.NewGuid().ToString("N"),
+            ProjectName = projectName,
+            Text = "next message",
+            TelegramMessageId = 123457,
+            Direction = MessageDirection.TelegramToFrontend,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        var nextPage = await messages.GetHistoryAsync(
+            phoneNumber,
+            projectName,
+            afterMessageId: saved.Id,
+            limit: 1);
+
+        Assert.Equal(nextSaved.Id, Assert.Single(nextPage).Id);
+    }
+
     private async Task CreateSchemaAsync()
     {
         await using var connection = await _connectionFactory.CreateOpenConnectionAsync();
